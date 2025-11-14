@@ -1,7 +1,7 @@
-u64 syscall1(number: u64, arg1: u64):
-    ret: i64
-    asm("syscall", {"=a", ret}, {"a": number, "d": arg1}, ("rcx", "r11", "memory"))
-    return ret
+u64 syscall1(u64 number, u64 arg1) {
+  u64 ret;
+  asm("syscall" : "=a"(ret) : "a"(number), "d"(arg1) : "rcx", "r11", "memory");
+  ret
+}
 
-void _start():
-    syscall1(60, 0)
+void _start() { syscall1(60, 0); }
