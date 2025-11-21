@@ -1,117 +1,251 @@
-from enum import Enum
-import sys
+# from enum import Enum
 import pathlib
-from typing import override
+import sys
+from enum import Enum
+from expression import Expression, Operand
 
 
-def clean(source_code: str) -> str:
-    source_code = source_code.replace("\n", " ")
-    result = ""
-    skip = True
-    skip_chars = [";", ",", "{", ")", "{", "}", '"', ":"]
-    for i, c in enumerate(source_code):
-        next_char = source_code[i + 1] if (i + 1) < len(source_code) else None
-        if c in skip_chars:
-            skip = True
-            result += c
-        elif c == " " and (skip or next_char == " " or next_char in skip_chars):
-            pass
+def get_level(line: str) -> int:
+    spaces = 0
+    for c in line:
+        if c == " ":
+            spaces += 1
         else:
-            skip = False
-            result += c
-    return result
+            break
+    assert spaces % 4 == 0
+    return int(spaces / 4)
 
 
-class BranchType(Enum):
-    RETURN = 1
-    BLOCK = 2
-    OTHER = 3
+class NodeType(Enum):
+    ROOT = 0
+    FUNCTION = 1
+    RETURN = 2
 
 
-Tree = list["Branch"]
+class Function:
+    name: str
+    args: dict[str, str]
+    return_type: str
+
+    def __init__(self, line: str):
+        name_start = 4
+        name_end = line.find("(")
+        self.name = line[name_start:name_end]
+        args_start = name_end + 1
+        args_end = line.find(")")
+        args = [arg.split(":") for arg in line[args_start:args_end].split(",")]
+        self.args = {key: value for key, value in args}
+        return_type_start = line.find("->") + 2
+        self.return_type = line[return_type_start:-1]
+
+    def __str__(self) -> str:  # pyright: ignore[reportImplicitOverride]
+        return f"function(name={self.name}, args={self.args}, return_type={self.return_type})"
 
 
-class Branch:
-    line: str
-    branch_type: BranchType
-    children: Tree
+class Return:
+    expression: Expression | Operand
+
+    def __init__(self, line: str):
+        start = len("return") + 1
+        end = len(line)
+        self.expression = Expression.from_str(line[start:end])
+
+
+class Node:
+    node_type: NodeType
+    function: Function
+    return_: Return
+
+    children: list["Node"]
+    parent: "Node | None"
+    level: int
 
     def __init__(
-        self, line: str, branch_type: BranchType = BranchType.OTHER, children: Tree = []
+        self,
+        line: str | None = None,
+        parent: "Node | None" = None,
+        level: int = -1,
     ):
-        self.line = line
-        self.branch_type = branch_type
-        self.children = children
-
-    @override
-    def __str__(self) -> str:
-        return f"{self.line} | {self.branch_type} | {self.children}"
-
-
-class TreeResult:
-    end: int
-    tree: Tree
-
-    def __init__(self, end: int, tree: Tree):
-        self.end = end
-        self.tree = tree
-
-
-def get_tree(source_code: str, offset: int = 0) -> TreeResult:
-    root: Tree = []
-    i = offset
-    key: str = ""
-    while i < len(source_code):
-        char = source_code[i]
-        if char == "{":
-            sub_result = get_tree(source_code, i + 1)
-            i = sub_result.end + 1
-            root.append(Branch(key, BranchType.BLOCK, sub_result.tree))
-            key = ""
-        elif char == "}":
-            break
-        elif char == ";":
-            root.append(Branch(key + ";"))
-            key = ""
-            i += 1
+        if line is None:
+            self.node_type = NodeType.ROOT
         else:
-            key += char
-            i += 1
-    if key:
-        branch_type = BranchType.RETURN
-        if key[-1] != ";":
-            branch_type.OTHER
-        root.append(Branch(key + ";", BranchType.RETURN))
-    return TreeResult(i, root)
+            print(line)
+            if line.startswith("def "):
+                self.node_type = NodeType.FUNCTION
+            elif line.startswith("return "):
+                self.node_type = NodeType.RETURN
+            else:
+                raise BaseException("not implemented yet")
+
+            match self.node_type:
+                case NodeType.FUNCTION:
+                    self.function = Function(line)
+                case NodeType.RETURN:
+                    self.return_ = Return(line)
+
+        self.parent = parent
+        self.children = []
+        self.level = level
+
+    def append(self, line: str, level: int) -> int:
+        node = Node(line, self, level)
+        self.children.append(node)
+        match node.node_type:
+            case NodeType.FUNCTION:
+                return level + 1
+            case NodeType.RETURN:
+                return level
+            case _:
+                raise BaseException("not implemented yet")
+
+    def get(self):
+        match self.node_type:
+            case NodeType.ROOT:
+                return None
+            case NodeType.FUNCTION:
+                return self.function
+
+    def __str__(self) -> str:  # pyright: ignore[reportImplicitOverride]
+        result: str = ""
+        if self.level != -1:
+            result += "\t" * self.level + str(self.get())
+        else:
+            result += ""
+        for child in self.children:
+            if result:
+                result += "\n" + str(child)
+            else:
+                result += str(child)
+        return result
 
 
-def to_c(tree: Tree) -> str:
-    c_code = ""
-    for branch in tree:
-        print(branch)
-        match branch.branch_type:
-            case BranchType.RETURN:
-                c_code += f"return {branch.line}"
-            case BranchType.BLOCK:
-                c_code += branch.line + "{"
-                c_code += to_c(branch.children)
-                c_code += "}"
-            case BranchType.OTHER:
-                c_code += branch.line
-    return c_code
+def minimize(source_code: str) -> str:
+    lines: list[str] = []
+    special_char = [":", ",", "(", ")", " ", ">", "="]
+    for line in source_code.split("\n"):
+        if line.strip() == "":
+            continue
+        else:
+            level = get_level(line)
+            new_line = " " * (4 * level)
+            line = line.strip()
+            for i, char in enumerate(line):
+                next_char = line[i + 1] if (i + 1) < len(line) else None
+                prev_char = line[i - 1] if (i - 1) >= 0 else None
+                if next_char in special_char and char == " ":
+                    continue
+                elif prev_char in special_char and char == " ":
+                    continue
+                else:
+                    new_line += char
+            lines.append(new_line)
+    return "\n".join(lines)
+
+
+def get_tree(source_code: str) -> Node:
+    lines = source_code.split("\n")
+    tree = Node()
+    root = tree
+    level = 0
+    i = 0
+    while True:
+        if i >= len(lines):
+            break
+        line = lines[i]
+        line_level = get_level(line)
+        print("line", line, level, line_level, root.parent)
+        if line_level == level:
+            level = root.append(line.strip(), level)
+        elif line_level < level:
+            if root.parent:
+                root = root.parent
+            else:
+                root = tree
+                # raise BaseException("Impossible")
+            level -= 1
+            continue
+        i += 1
+    return tree
+
+
+# class Node:
+#     level: int
+#     line: str
+#     children: list["Node"]
+#     root: "Node | None"
+#
+#     def __init__(self, line: str, root: "Node | None" = None, level: int = -1):
+#         self.line = line
+#         self.root = root
+#         self.level = level
+#         self.children = []
+#
+#     @classmethod
+#     def from_source_code(cls, source_code: str) -> "Node":
+#         tree = Node("")
+#         source_code = source_code
+#         level = 0
+#         root = tree
+#         index = 0
+#         lines = source_code.split("\n")
+#         while True:
+#             line = lines[index]
+#             print(line)
+#             break
+#             # if index >= len(lines):
+#             #     break
+#             # line_level = get_level(line)
+#             # line = line.strip()
+#             # if not line:
+#             #     index += 1
+#             #     continue
+#             # if line_level == level:
+#             #     root.append(line, level)
+#             #     if line[-1] == ":":
+#             #         level += 1
+#             #         root = root.last()
+#             # else:
+#             #     root = root.last().root
+#             #     level -= 1
+#             #     continue
+#             index += 1
+#         return tree
+#
+#     def __str__(self) -> str:  # pyright: ignore[reportImplicitOverride]
+#         result: str = ""
+#         if self.level != -1:
+#             result += "\t" * self.level + f"{self.line}"
+#         if self.children:
+#             for child in self.children:
+#                 if result:
+#                     result += f"\n{child}"
+#                 else:
+#                     result += f"{child}"
+#         return result
+#
+#     def append(self, line: str, level: int):
+#         self.children.append(Node(line, self, level))
+#
+#     def last(self):
+#         return self.children[-1]
 
 
 def main():
     assert len(sys.argv) == 2
     hrk = pathlib.Path(sys.argv[1])
     source_code = hrk.read_text()
-    source_code = clean(source_code)
-    tree_result = get_tree(source_code)
-    tree = tree_result.tree
-    c_code = "typedef unsigned long u64;"
-    c_code += to_c(tree)
-    c = hrk.with_suffix(".c")
-    assert c.write_text(c_code)
+    source_code = minimize(source_code)
+    tree = get_tree(source_code)
+    print(tree)
+    # source_code = clean(source_code)
+    # tree_result = get_tree(source_code)
+    # tree = tree_result.tree
+    # c_code = "typedef unsigned long u64;"
+    # c_code += to_c(tree)
+    # c = hrk.with_suffix(".c")
+    # asm_code = to_asm(tree)
+    # print(asm_code)
+    # assert c.write_text(c_code)
 
 
 if __name__ == "__main__":
