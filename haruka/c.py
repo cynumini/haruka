@@ -64,14 +64,14 @@ def assembler_to_c(assembler: st.Assembler) -> str:
         result += " volatile("
     else:
         result += "("
-    result += f"{assembler.template}:"
+    result += f'"{assembler.template}":'
     for key, value in assembler.output_operands.items():
-        result += f"{key}({value}),"
+        result += f'"{key}"({value}),'
     if result[-1] == ",":
         result = result[:-1]
     result += ":"
     for key, value in assembler.input_operands.items():
-        result += f"{key}({value}),"
+        result += f'"{key}"({value}),'
     if result[-1] == ",":
         result = result[:-1]
     result += ":"

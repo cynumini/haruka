@@ -231,7 +231,7 @@ def get_syntax_tree(tokens: list[Token]) -> Elements:
                 current_assembler.volatile = True
             case State.ASM_TEMPLATE:
                 assert current_assembler
-                current_assembler.template = token.value
+                current_assembler.template = token.value[1:-1]
             case State.ASM_OO_KEY:
                 assert current_assembler
                 temp.append(token)  # token[0] = OutputOperand's key
@@ -239,7 +239,7 @@ def get_syntax_tree(tokens: list[Token]) -> Elements:
             case State.ASM_OO_VALUE:
                 assert current_assembler
                 assert len(temp) == 1
-                current_assembler.output_operands[temp.pop().value] = token.value
+                current_assembler.output_operands[temp.pop().value[1:-1]] = token.value
             case State.ASM_IO_KEY:
                 assert current_assembler
                 temp.append(token)  # token[0] = OutputOperand's key
@@ -247,7 +247,7 @@ def get_syntax_tree(tokens: list[Token]) -> Elements:
             case State.ASM_IO_VALUE:
                 assert current_assembler
                 assert len(temp) == 1
-                current_assembler.input_operands[temp.pop().value] = token.value
+                current_assembler.input_operands[temp.pop().value[1:-1]] = token.value
             case State.ASM_CLOBBER:
                 assert current_assembler
                 current_assembler.clobbers.append(token.value)
