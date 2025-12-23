@@ -48,11 +48,10 @@ def function_to_asm(function: st.Function) -> str:
                 assert type(element) is st.FunctionCall
                 if element.args:
                     for i, arg in enumerate(element.args):
-                        result += f"    movq    ${arg}, %{args[i]}\n"
+                        result += f"    movq    ${arg.nodes[0]}, %{args[i]}\n"
                 result += f"    call    {element.name}\n"
             case _:
                 raise Exception(f"{type(element)} is not implemented")
-    print(offsets)
     result += "    popq    %rbp\n    ret\n"
     return result
 

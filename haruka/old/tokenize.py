@@ -1,3 +1,4 @@
+from ast import Raise
 from enum import Enum, auto
 from typing import override
 
@@ -7,6 +8,7 @@ class State(Enum):
     LITERAL = auto()
     SYMBOL = auto()
     STRING = auto()
+    STRING_ESCAPE = auto()
     NUMBER = auto()
 
 
@@ -16,6 +18,7 @@ class CharType(Enum):
     SPACE = auto()
     SYMBOL = auto()
     DOUBLE_QUOTES = auto()
+    BACKSLASH = auto()
 
     @staticmethod
     def get_char_type(char: str):
@@ -35,6 +38,8 @@ class CharType(Enum):
             return CharType.SYMBOL
         elif char == '"':
             return CharType.DOUBLE_QUOTES
+        elif char == "\\":
+            return CharType.BACKSLASH
         else:
             raise Exception(f"Make a new char type for '{char}'!")
 
@@ -60,6 +65,8 @@ state_table = {
     (State.SYMBOL, CharType.NUMBER): State.NUMBER,
     (State.SYMBOL, CharType.SPACE): State.END,
     (State.SYMBOL, CharType.SYMBOL): State.SYMBOL,
+    (State.STRING, CharType.BACKSLASH): State.STRING_ESCAPE,
+    (State.STRING_ESCAPE, CharType.ALPHABET): State.STRING,
 }
 
 
@@ -134,7 +141,7 @@ def tokenize(text: str):
     for char in text:
         next_state = state_table[(state, CharType.get_char_type(char))]
         match next_state:
-            case State.LITERAL | State.STRING | State.NUMBER:
+            case State.LITERAL | State.STRING | State.NUMBER | State.STRING_ESCAPE:
                 if state == State.SYMBOL and current_token:
                     tokens.append(Token(current_token, state))
                     current_token = ""
@@ -150,5 +157,7 @@ def tokenize(text: str):
                     tokens.append(Token(current_token, state))
                     current_token = ""
                 current_token += char
+            case _:
+                raise Exception(f"{next_state} is not covered!")
         state = next_state
     return tokens

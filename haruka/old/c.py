@@ -1,4 +1,5 @@
 import subprocess
+from unittest import result
 import haruka.syntax_tree as st
 from pathlib import Path
 
@@ -108,10 +109,30 @@ def element_to_c(element: st.Element) -> str:
             raise Exception(f"{type(element)} is not implemented")
 
 
+def expression_to_c(expression: st.Expression) -> str:
+    result = ""
+    for node in expression.nodes:
+        if isinstance(node, int):
+            assert type(node) is int
+            result += f"{node}"
+        elif isinstance(node, st.Expression):
+            # assert type(node) is st.Expression
+            result += f"({expression_to_c(node)})"
+        elif isinstance(node, str):
+            assert type(node) is str
+            if node in types:
+                result += types[node]
+            else:
+                result += node
+        else:
+            raise Exception(f"{type(node)} is not implemented")
+    return result
+
+
 def function_call_to_c(function_call: st.FunctionCall) -> str:
     result = f"{function_call.name}("
     for arg in function_call.args:
-        result += f"{arg},"
+        result += f"{expression_to_c(arg)},"
     if result[-1] == ",":
         result = result[:-1]
     return result + ");"
