@@ -8,7 +8,8 @@
 
 #include "utils.h"
 
-enum token_type {
+typedef enum
+{
   tt_macros,
   tt_literal,
   tt_number,
@@ -19,20 +20,23 @@ enum token_type {
   tt_closing_brace,
   tt_semicolon,
   tt_return,
-};
+  tt_len,
+} TokenType;
 
-struct token {
-  enum token_type type;
-  char* value;
+typedef struct
+{
+  TokenType type;
+  const char* value;
   size_t len;
-};
+} Token;
 
-struct tokens {
-  struct token* items;
+typedef struct
+{
+  Token* items;
   size_t capacity;
   size_t len;
-};
+} Tokens;
 
-struct tokens tokenize(char* source_code);
-void token_print(const struct token * token);
+Tokens tokenize(const char* source_code);
+void token_print(const Token * token);
 #endif

@@ -8,6 +8,7 @@ enum state {
   s_string,
   s_string_esc,
   s_number,
+  s_unknown,
   s_len,
 };
 
@@ -53,26 +54,26 @@ enum char_type char_type_from_char(char c) {
   return 0; // -Wall
 }
 
-const int states[s_len][ct_len] = {
-  { s_literal, s_macros,  s_start, s_symbol,       -1, s_start,  s_number,       -1,           -1},
-  {  s_macros,       -1, s_macros, s_macros, s_macros, s_start,        -1,       -1,           -1},
-  { s_literal,       -1,  s_start, s_symbol,       -1,      -1, s_literal,       -1,           -1},
-  {        -1,       -1,  s_start, s_symbol,       -1, s_start,        -1, s_string,           -1},
-  {  s_string,       -1, s_string, s_string,       -1,      -1,        -1,  s_start, s_string_esc},
-  {  s_string,       -1,       -1,       -1,       -1,      -1,        -1,       -1,           -1},
-  {        -1,       -1,       -1, s_symbol,       -1,      -1,        -1,       -1,           -1},
+static const enum state states[s_len][ct_len] = {
+  { s_literal, s_macros, s_start, s_symbol, s_unknown, s_start, s_number, s_unknown, s_unknown},
+  { s_macros, s_unknown, s_macros, s_macros, s_macros, s_start, s_unknown, s_unknown, s_unknown},
+  { s_literal, s_unknown, s_start, s_symbol, s_unknown, s_unknown, s_literal, s_unknown, s_unknown},
+  { s_unknown, s_unknown, s_start, s_symbol, s_unknown, s_start, s_unknown, s_string, s_unknown},
+  { s_string, s_unknown, s_string, s_string, s_unknown, s_unknown, s_unknown, s_start, s_string_esc},
+  { s_string, s_unknown, s_unknown, s_unknown, s_unknown, s_unknown, s_unknown, s_unknown, s_unknown},
+  { s_unknown, s_unknown, s_unknown, s_symbol, s_unknown, s_unknown, s_unknown, s_unknown, s_unknown},
 };
 
 enum state get_next_state(enum state state, enum char_type char_type) {
   enum state next_state = states[state][char_type];
-  if (next_state == -1) {
+  if (next_state == s_unknown) {
     printf("%i - %i\n", state, char_type);
     unreachable;
   }
   return next_state;
 }
 
-void add_token(struct tokens * tokens, enum state state, char* value,  size_t start, size_t end) {
+void add_token(Tokens* tokens, enum state state, const char* value, size_t start, size_t end) {
   size_t index = tokens->len;
   if (index >= tokens->capacity) {
     if (tokens->capacity == 0) {
@@ -81,9 +82,9 @@ void add_token(struct tokens * tokens, enum state state, char* value,  size_t st
       tokens->capacity *= 2;
     }
     tokens->items = realloc(tokens->items,
-			    sizeof(struct token) * tokens->capacity);
+			    sizeof(Token) * tokens->capacity);
   }
-  enum token_type token_type;
+  TokenType token_type;
   switch (state) {
   case s_literal:
     if (strncmp(value, "return", 6) == 0) {
@@ -128,17 +129,17 @@ void add_token(struct tokens * tokens, enum state state, char* value,  size_t st
     printf("state: %i\n", state);
     unreachable;
   }
-  tokens->items[index] = (struct token){token_type, value, end - start};
+  tokens->items[index] = (Token){token_type, value, end - start};
   tokens->len++;
 }
 
-struct tokens tokenize(char* source_code) {
-  struct tokens tokens = {0};
+Tokens tokenize(const char* source_code) {
+  Tokens tokens = {0};
   size_t len = strlen(source_code);
   enum state state = s_start;
   int start = -1;
   int end = -1;
-  for (int i = 0; i < len; i++) {
+  for (size_t i = 0; i < len; i++) {
     char c = source_code[i];
     enum char_type char_type = char_type_from_char(c);
     enum state next_state = get_next_state(state, char_type);
@@ -180,17 +181,13 @@ struct tokens tokenize(char* source_code) {
       printf("%i is not covered\n", next_state);
       unreachable;
     }
-
     state = next_state;
-
   }
-
-  printf("%i %i\n", start, end);
 
   return tokens;
 }
 
-void token_print(const struct token * token) {
+void token_print(const Token * token) {
   switch (token->type) {
   case tt_macros:
     printf("tt_macros: ");
@@ -222,8 +219,10 @@ void token_print(const struct token * token) {
   case tt_return:
       printf("tt_return: ");
       break;
+  case tt_len:
+      unreachable;
   }
-  for (int i = 0; i < token->len; i++) {
+  for (size_t i = 0; i < token->len; i++) {
     putchar(token->value[i]);
   }
   putchar('\n');
