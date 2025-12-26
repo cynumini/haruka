@@ -6,12 +6,12 @@
 #include "tokenizer.h"
 #include "syntax.h"
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
     assert(argc == 2);
 
-    char* input_path = argv[1];
-    char* source_code = read_text(input_path);
+    const char *input_path = argv[1];
+    char *source_code = read_text(input_path);
 
     Tokens tokens = tokenize(source_code);
 
