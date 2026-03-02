@@ -1,0 +1,8 @@
+-Wall
+-Wpedantic
+-Wextra
+-Werror
+-g
+-Isakana/include
+-Lsakana/out
+-lsakana
