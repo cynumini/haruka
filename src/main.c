@@ -1,53 +1,77 @@
 #include <assert.h>
+#include <errno.h>
+#include <linux/limits.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <SKN/arena.h>
-#include <SKN/filesystem.h>
+#include <SKN/array.h>
 #include <SKN/types.h>
 
-#include "lexer.h"
-#include "parser.h"
+DEFINE_DYNAMIC_ARRAY(Strings, char *);
+DYNAMIC_ARRAY_IMPL_ADD(Strings, char *, strings_add)
 
-DYNAMIC_ARRAY_IMPL_ADD(Nodes, Node, nodes_add)
-
-int main(int argc, char *argv[])
+i32 main(void)
 {
     Arena arena = arena_create(MB(1));
 
-    assert(argc == 3);
+    i32 result = mkdir("generated", 0755);
+    assert(result == 0 || errno == EEXIST);
 
-    const char *input_path = argv[1];
-    const char *output_path = argv[2];
+    char input_path[PATH_MAX];
+    getcwd(input_path, PATH_MAX);
+    strcat(input_path, "/generated/hello_world.c");
 
-    const char *input_text = read_text(&arena, input_path);
-    write_text(output_path, input_text);
-
-    Lexer lexer = lexer_create(input_text);
-
-    Node root = {
-        .type = NODE_TYPE_ROOT,
-    };
-
-    nodes_add(&arena, &root.root.nodes, (Node){0});
-
-    Node *current_node = &root.root.nodes.items[0];
-
-    Token token;
-    do
     {
-        token = lexer_get_next_token(&lexer);
-        current_node = parse(&arena, current_node, token);
-        if (current_node->finished)
-        {
-            nodes_add(&arena, &root.root.nodes, (Node){0});
-            Nodes *nodes = &root.root.nodes;
-            current_node = &nodes->items[nodes->len - 1];
-        }
-    } while (token.type != TOKEN_TYPE_EOF);
 
-    node_print(&root, 0);
+        FILE *file = fopen(input_path, "w");
+
+        fprintf(file, "#include <stdio.h>\n");
+        fprintf(file, "#include <stdlib.h>\n");
+        fprintf(file, "#include <SKN/types.h>\n");
+        fprintf(file, "i32 main(void)\n");
+        fprintf(file, "{\n");
+        fprintf(file, "    printf(\"haruka\\n\");\n");
+        fprintf(file, "    return EXIT_SUCCESS;\n");
+        fprintf(file, "}\n");
+
+        fclose(file);
+    }
+
+    // compile
+    {
+        i32 result = mkdir("out", 0755);
+        assert(result == 0 || errno == EEXIST);
+
+        char output_path[PATH_MAX];
+        getcwd(output_path, PATH_MAX);
+        strcat(output_path, "/out/hello_world");
+
+        Strings argv;
+        strings_add(&arena, &argv, "gcc");
+        strings_add(&arena, &argv, input_path);
+        strings_add(&arena, &argv, "-o");
+        strings_add(&arena, &argv, output_path);
+        strings_add(&arena, &argv, "-Isakana/include");
+        strings_add(&arena, &argv, "-Lsakana/out");
+        strings_add(&arena, &argv, "-lsakana");
+        strings_add(&arena, &argv, NULL);
+
+        pid_t pid = fork();
+        if (pid == 0)
+        {
+            execv("/bin/gcc", argv.items);
+        }
+        else
+        {
+            assert(wait(NULL) != -1);
+        }
+    }
 
     arena_destroy(&arena);
-
     return EXIT_SUCCESS;
 }

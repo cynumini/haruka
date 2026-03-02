@@ -2,10 +2,12 @@
 
 set -e
 
-flags="-Wall -Wpedantic -Wextra -Werror -g -Isakana/include -Lsakana/out -lsakana"
-files="./src/main.c ./src/lexer.c ./src/parser.c"
+warnings="-Wall -Wpedantic -Wextra -Werror"
+sakana="-Isakana/include -Lsakana/out -lsakana"
+flags="$warnings $sakana -g "
+files="./src/main.c"
 bin="./out/haruka"
-run="$bin ./examples/1.hrk ./examples/1.c"
+run="$bin"
 
 make -C sakana
 mkdir -p out
@@ -18,7 +20,7 @@ if [ "$1" = "gf2" ]; then
 else
 	echo "#### run haruka ####"
 	$run
-	echo "#### build and run ####"
-	gcc ./examples/1.c -o ./out/1
-	./out/1
+# 	echo "#### build and run ####"
+# 	gcc ./examples/1.c -o ./out/1
+# 	./out/1
 fi
