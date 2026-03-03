@@ -5,7 +5,7 @@ set -e
 warnings="-Wall -Wpedantic -Wextra -Werror"
 sakana="-Isakana/include -Lsakana/out -lsakana"
 flags="$warnings $sakana -g "
-files="./src/main.c"
+files="./src/main.c ./src/haruka.c"
 bin="./out/haruka"
 run="$bin"
 
@@ -20,7 +20,5 @@ if [ "$1" = "gf2" ]; then
 else
 	echo "#### run haruka ####"
 	$run
-# 	echo "#### build and run ####"
-# 	gcc ./examples/1.c -o ./out/1
-# 	./out/1
+	./out/hello_world
 fi
