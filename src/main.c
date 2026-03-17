@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "SKN/arena.h"
@@ -5,18 +6,25 @@
 
 #include "haruka.h"
 
-void main_file(Arena *arena, Node *body, Haruka hrk)
+void main_file(Arena *arena, Node *node, Haruka hrk)
 {
-    include(arena, body, "stdio.h", false);
-    include(arena, body, "stdlib.h", false);
-    include(arena, body, "SKN/types.h", false);
+    haruka_begin(arena, node);
 
-    Node *f = function(arena, body, hrk.type_i32, "main", parameter(arena, hrk.type_void, NULL), NULL);
+    include("stdio.h", false);
+    include("stdlib.h", false);
+    include("SKN/types.h", false);
+
+    function(hrk.type_i32, "main", parameter(hrk.type_void, NULL), NULL);
     {
-        Node *f_block = f->function.block;
-        call(arena, f_block, "printf", string_make(arena, "Hello, World\\n"), NULL);
-        return_stmt(arena, f_block, identifier_make(arena, "EXIT_SUCCESS"));
+        for (usize i = 0; i < 10; i++)
+        {
+            static char buf[256] = {0};
+            snprintf(buf, 256, "Hello, World %zu\\n", i);
+            call("printf", string_make(buf), NULL);
+        }
+        return_stmt(identifier_make("EXIT_SUCCESS"));
     }
+    function_end();
 }
 
 i32 main(void)

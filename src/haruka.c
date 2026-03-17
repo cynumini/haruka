@@ -7,13 +7,15 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include <SKN/errors.h>
+
+static Arena *current_arena;
+static Node *current_node;
 
 DEFINE_DYNAMIC_ARRAY(Strings, char *);
 DYNAMIC_ARRAY_IMPL_ADD(Strings, char *, strings_add)
@@ -85,12 +87,12 @@ Node *function_create(Arena *arena, Node *type, const char *name, Nodes paramete
     return node;
 }
 
-Node *string_make(Arena *arena, const char *body)
+Node *string_make(const char *body)
 {
-    Node *node = ARENA_PUSH_STRUCT_ZERO(arena, Node);
+    Node *node = ARENA_PUSH_STRUCT_ZERO(current_arena, Node);
 
     node->node_type = NODE_TYPE_STRING;
-    node->string.body = body;
+    node->string.body = arena_strdup(current_arena, body);
 
     return node;
 }
@@ -108,9 +110,9 @@ Node *call_create(Arena *arena, const char *name, Nodes args)
     return node;
 }
 
-Node *identifier_make(Arena *arena, const char *name)
+Node *identifier_make(const char *name)
 {
-    Node *node = ARENA_PUSH_STRUCT_ZERO(arena, Node);
+    Node *node = ARENA_PUSH_STRUCT_ZERO(current_arena, Node);
 
     node->node_type = NODE_TYPE_IDENTIFIER;
     node->call.name = name;
@@ -210,11 +212,11 @@ void node_fprintf(FILE *file, Node *node)
     }
 }
 
-void include(Arena *arena, Node *root, const char *name, bool from_current_dir)
+void include(const char *name, bool from_current_dir)
 {
-    assert(root->node_type == NODE_TYPE_BLOCK);
+    assert(current_node->node_type == NODE_TYPE_BLOCK);
     const char *base = "#include ";
-    char *body = (char *)arena_push_zero(arena, strlen(base) + strlen(name) + 2 + 1);
+    char *body = (char *)arena_push_zero(current_arena, strlen(base) + strlen(name) + 2 + 1);
     if (from_current_dir)
     {
         sprintf(body, "#include \"%s\"", name);
@@ -223,56 +225,64 @@ void include(Arena *arena, Node *root, const char *name, bool from_current_dir)
     {
         sprintf(body, "#include <%s>", name);
     }
-    Node *self = macro_create(arena, body);
-    nodes_add(arena, &root->block.children, self);
+    Node *self = macro_create(current_arena, body);
+    self->parent = current_node;
+    nodes_add(current_arena, &current_node->block.children, self);
 }
 
-Node *parameter(Arena *arena, Node *type, const char *name)
+Node *parameter(Node *type, const char *name)
 {
     if (name)
     {
-        return parameter_create_with_name(arena, type, name);
+        return parameter_create_with_name(current_arena, type, name);
     }
     else
     {
-        return parameter_create(arena, type);
+        return parameter_create(current_arena, type);
     }
 }
 
-Node *function(Arena *arena, Node *root, Node *type, const char *name, ...)
+void function(Node *type, const char *name, ...)
 {
     Nodes parameters = {0};
     va_list va;
     va_start(va, name);
     for (Node *child = va_arg(va, Node *); child != NULL; child = va_arg(va, Node *))
     {
-        nodes_add(arena, &parameters, child);
+        nodes_add(current_arena, &parameters, child);
     }
     va_end(va);
-    Node *self = function_create(arena, type, name, parameters, block_create(arena, false));
-    nodes_add(arena, &root->block.children, self);
-    return self;
+    Node *self = function_create(current_arena, type, name, parameters, block_create(current_arena, false));
+    nodes_add(current_arena, &current_node->block.children, self);
+    current_node = self;
 }
 
-Node *call(Arena *arena, Node *root, const char *name, ...)
+void function_end(void)
 {
+    current_node = current_node->parent;
+}
+
+Node *call(const char *name, ...)
+{
+    Node *root = current_node->function.block;
     Nodes args = {0};
     va_list va;
     va_start(va, name);
     for (Node *child = va_arg(va, Node *); child != NULL; child = va_arg(va, Node *))
     {
-        nodes_add(arena, &args, child);
+        nodes_add(current_arena, &args, child);
     }
     va_end(va);
-    Node *self = call_create(arena, name, args);
-    nodes_add(arena, &root->block.children, self);
+    Node *self = call_create(current_arena, name, args);
+    nodes_add(current_arena, &root->block.children, self);
     return self;
 }
 
-Node *return_stmt(Arena *arena, Node *root, Node *child)
+Node *return_stmt(Node *child)
 {
-    Node *self = return_stmt_make(arena, child);
-    nodes_add(arena, &root->block.children, self);
+    Node *root = current_node->function.block;
+    Node *self = return_stmt_make(current_arena, child);
+    nodes_add(current_arena, &root->block.children, self);
     return self;
 }
 
@@ -372,4 +382,10 @@ void program_compile(Arena *arena, Program *self)
             assert(wait(NULL) != -1);
         }
     }
+}
+
+void haruka_begin(Arena *arena, Node *node)
+{
+    current_arena = arena;
+    current_node = node;
 }

@@ -93,16 +93,18 @@ typedef struct Haruka
     Node *type_i32;
 } Haruka;
 
-Node *string_make(Arena *arena, const char *body);
-Node *identifier_make(Arena *arena, const char *name);
+Node *string_make(const char *body);
+Node *identifier_make(const char *name);
 Haruka haruka_create(Arena *arena);
-void include(Arena *arena, Node *root, const char *name, bool from_current_dir);
-Node *function(Arena *arena, Node *root, Node *type, const char *name, ...);
-Node *parameter(Arena *arena, Node *type, const char *name);
-Node *call(Arena *arena, Node *root, const char *name, ...);
-Node *return_stmt(Arena *arena, Node *root, Node *child);
+void include(const char *name, bool from_current_dir);
+void function(Node *type, const char *name, ...);
+void function_end(void);
+Node *parameter(Node *type, const char *name);
+Node *call(const char *name, ...);
+Node *return_stmt(Node *child);
 Program program_create(Arena *arena);
 void program_generate(Arena *arena, Program *self);
 void program_compile(Arena *arena, Program *self);
+void haruka_begin(Arena *arena, Node *node);
 
 #endif /* end of include guard: HARUKA_H */
